@@ -69,7 +69,7 @@ function processosDoQuadro() {
       quem: '',
       status: 'Em Andamento',
       progresso: '',
-      itens: ['AT-33826', 'SC-34374 e 33826', 'DG-34146', 'HU-30297', 'HC-30979']
+      itens: ['AT-33.826', 'SC-34.374 e 33.826', 'DG-34.146', 'HU-30.297', 'HC-30.979']
         .map(texto => ({ texto, feito: false }))
     }
   ];
@@ -547,7 +547,9 @@ function passaFiltros(p) {
   const termo = normalizar(searchInput.value);
   if (termo) {
     const texto = normalizar([p.descricao, p.quem, p.progresso, p.obs, ...itensDe(p).map(i => i.texto)].join(' '));
-    if (!texto.includes(termo)) return false;
+    // Protocolos: "33826" também encontra "33.826"
+    const semPontos = (s) => s.replace(/\./g, '');
+    if (!texto.includes(termo) && !semPontos(texto).includes(semPontos(termo))) return false;
   }
   if (filterQuem.value && !pessoasDe(p.quem).some(n => normalizar(n) === normalizar(filterQuem.value))) return false;
   if (filterUrgencia.value && normalizarUrgencia(p.urgencia) !== filterUrgencia.value) return false;
