@@ -77,10 +77,9 @@ code {
   padding: 0 0.3em;
 }
 
+/* Ocupa toda a largura da tela */
 .container {
   width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
   padding-inline: 2rem;
 }
 
@@ -399,7 +398,7 @@ main.container {
    LISTA DE PROCESSOS
    ============================================================ */
 .board {
-  --cols: minmax(0, 1fr) 200px 110px 170px 118px;
+  --cols: minmax(0, 1.25fr) 180px 100px 160px minmax(0, 1fr) 118px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -481,20 +480,63 @@ main.container {
   overflow-wrap: anywhere;
 }
 
-.process-progress {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  margin-top: 0.3rem;
+/* Progresso (editável direto na lista) */
+.progress-cell {
+  display: block;
+  width: calc(100% + 1rem);
+  margin: -0.3rem -0.5rem;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
   font-size: 0.875rem;
-  color: var(--text-2);
+  line-height: 1.45;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-sm);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  cursor: text;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
-.process-progress svg {
-  width: 15px;
-  height: 15px;
-  margin-top: 0.15rem;
-  color: var(--primary);
+.progress-cell:hover {
+  background: var(--surface-muted);
+  border-color: var(--border-strong);
+}
+
+.progress-cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.progress-cell.is-empty {
+  color: var(--text-3);
+  border-color: var(--border-strong);
+}
+
+.progress-cell.is-empty::before {
+  content: '+ ';
+}
+
+.progress-input {
+  display: block;
+  width: calc(100% + 1rem);
+  margin: -0.3rem -0.5rem;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  resize: vertical;
+  outline: none;
+}
+
+.process-progresso .process-meta {
+  margin-top: 0.6rem;
 }
 
 .process-obs {
@@ -706,7 +748,7 @@ main.container {
 
 .process.is-done .process-quem,
 .process.is-done .process-urgencia,
-.process.is-done .process-progress,
+.process.is-done .process-progresso,
 .process.is-done .checklist {
   opacity: 0.6;
 }
@@ -1060,7 +1102,8 @@ body.carregando .board-head {
    RESPONSIVO
    ============================================================ */
 @media (max-width: 1100px) {
-  .board { --cols: minmax(0, 1fr) 160px 96px 150px 118px; }
+  .board { --cols: minmax(0, 1.2fr) 140px 90px 150px minmax(0, 1fr) 110px; }
+  .board-head, .process { gap: 1rem; }
   .container { padding-inline: 1.25rem; }
   .user-email { display: none; }
 }
@@ -1075,6 +1118,7 @@ body.carregando .board-head {
       "main main"
       "quem quem"
       "urgencia status"
+      "progresso progresso"
       "acoes acoes";
     gap: 0.6rem 0.75rem;
     padding: 0.9rem 1rem 0.75rem 1.2rem;
@@ -1085,6 +1129,27 @@ body.carregando .board-head {
   .process-quem { grid-area: quem; padding-top: 0; }
   .process-urgencia { grid-area: urgencia; padding-top: 0; }
   .process-status { grid-area: status; padding-top: 0; justify-self: start; }
+
+  .process-progresso { grid-area: progresso; }
+
+  .process-progresso::before {
+    content: 'Progresso';
+    display: block;
+    margin-bottom: 0.45rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-3);
+  }
+
+  .progress-cell,
+  .progress-input {
+    width: 100%;
+    margin: 0;
+    border-color: var(--border);
+    background: var(--surface-muted);
+  }
   .status-select { width: auto; }
 
   .process-actions {
@@ -1157,7 +1222,9 @@ body.carregando .board-head {
   .print-header h2 { font-size: 14pt; }
   .print-header p { font-size: 9pt; color: #475569; }
 
-  .board { border: none; box-shadow: none; --cols: minmax(0, 1fr) 150px 80px 110px; }
+  .board { border: none; box-shadow: none; --cols: minmax(0, 1.2fr) 120px 70px 95px minmax(0, 1fr); }
+  .progress-cell { border: none; padding: 0; margin: 0; width: 100%; }
+  .progress-cell.is-empty { display: none; }
   .process { grid-template-columns: var(--cols); break-inside: avoid; padding: 0.5rem 0 0.5rem 0.75rem; }
   .status-select { background-image: none; padding: 0; background-color: transparent !important; }
   .checklist { background: none; }

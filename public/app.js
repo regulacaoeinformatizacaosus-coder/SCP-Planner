@@ -98,6 +98,7 @@ let processos = [];
 let modo = 'carregando'; // 'carregando' | 'firebase' | 'local'
 let filtroRapido = 'todos';
 let ultimaListaPessoas = '';
+let edicaoAtiva = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -621,7 +622,6 @@ function atualizarKpis() {
 }
 
 const ICONES = {
-  relogio: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   reabrir: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>',
   editar: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>',
@@ -660,10 +660,8 @@ function htmlProcesso(p) {
     <li class="process urg-${urgencia.toLowerCase()} ${concluido ? 'is-done' : ''}" data-id="${escapeHtml(p.id)}">
       <div class="process-main">
         <h3 class="process-title">${escapeHtml(p.descricao)}</h3>
-        ${p.progresso ? `<p class="process-progress">${ICONES.relogio}<span>${escapeHtml(p.progresso)}</span></p>` : ''}
         ${htmlItens}
         ${p.obs ? `<p class="process-obs">${escapeHtml(p.obs)}</p>` : ''}
-        ${atualizado ? `<p class="process-meta">Atualizado em ${formatarData(atualizado)}${escapeHtml(atualizadoPor)}</p>` : ''}
       </div>
 
       <div class="process-quem">
@@ -682,6 +680,11 @@ function htmlProcesso(p) {
         </select>
       </div>
 
+      <div class="process-progresso">
+        <button type="button" class="progress-cell ${p.progresso ? '' : 'is-empty'}" data-acao="progresso" title="Clique para registrar a última coisa feita">${p.progresso ? escapeHtml(p.progresso) : 'Registrar progresso'}</button>
+        ${atualizado ? `<p class="process-meta">Atualizado em ${formatarData(atualizado)}${escapeHtml(atualizadoPor)}</p>` : ''}
+      </div>
+
       <div class="process-actions">
         <button type="button" class="btn-icon action-check" data-acao="concluir" title="${concluido ? 'Reabrir' : 'Concluir'}">
           ${concluido ? ICONES.reabrir : ICONES.check}<span class="action-label">${concluido ? 'Reabrir' : 'Concluir'}</span>
@@ -698,6 +701,11 @@ function htmlProcesso(p) {
 
 function render() {
   document.body.classList.toggle('carregando', modo === 'carregando');
+  // Não redesenha a lista enquanto alguém digita o progresso (atualizações de colegas chegam depois)
+  if (edicaoAtiva) {
+    atualizarKpis();
+    return;
+  }
   atualizarListasDePessoas();
   atualizarKpis();
 
@@ -734,6 +742,8 @@ processList.addEventListener('click', async (e) => {
 
   if (botao.dataset.acao === 'editar') {
     abrirModal(item);
+  } else if (botao.dataset.acao === 'progresso') {
+    editarProgresso(botao, item);
   } else if (botao.dataset.acao === 'concluir') {
     const novoStatus = estaConcluido(item) ? 'Em Andamento' : 'Concluido';
     const ok = await tentar(() => atualizarProcesso(id, { status: novoStatus }), 'Erro ao alterar o status.');
@@ -744,6 +754,45 @@ processList.addEventListener('click', async (e) => {
     if (ok) showToast('Processo excluído.');
   }
 });
+
+// Edição rápida do progresso direto na lista: Enter salva, Esc cancela
+function editarProgresso(celula, item) {
+  const campo = document.createElement('textarea');
+  campo.className = 'progress-input';
+  campo.rows = 2;
+  campo.maxLength = 1000;
+  campo.placeholder = 'Última coisa feita...';
+  campo.value = item.progresso || '';
+  celula.replaceWith(campo);
+  edicaoAtiva = true;
+  campo.focus();
+  campo.setSelectionRange(campo.value.length, campo.value.length);
+
+  let finalizado = false;
+  const finalizar = async (salvar) => {
+    if (finalizado) return;
+    finalizado = true;
+    edicaoAtiva = false;
+    const novo = campo.value.trim();
+    if (!salvar || novo === (item.progresso || '')) {
+      render();
+      return;
+    }
+    const ok = await tentar(() => atualizarProcesso(item.id, { progresso: novo }), 'Erro ao salvar o progresso.');
+    if (ok) showToast('Progresso atualizado.', 'success');
+    else render();
+  };
+
+  campo.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      finalizar(true);
+    } else if (e.key === 'Escape') {
+      finalizar(false);
+    }
+  });
+  campo.addEventListener('blur', () => finalizar(true));
+}
 
 processList.addEventListener('change', async (e) => {
   const campo = e.target.closest('[data-acao]');
