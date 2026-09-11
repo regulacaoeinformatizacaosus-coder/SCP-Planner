@@ -28,7 +28,29 @@ service cloud.firestore {
         && d.progresso is string && d.progresso.size() <= 1000
         && d.obs is string && d.obs.size() <= 5000
         && d.itens is list && d.itens.size() <= 200
-        && (!d.keys().hasAny(['notificacao']) || d.notificacao is bool);
+        && d.get('notificacao', false) is bool
+        && d.get('transferidoDe', '') is string
+        && d.get('transferidoPor', '') is string
+        && (!d.keys().hasAny(['transferidoEm']) || d.transferidoEm is timestamp);
+    }
+
+    // Cadastro comum: criado agora, pela própria pessoa, sem histórico de atualização/transferência
+    function criacaoComum(d) {
+      return d.criadoEm == request.time
+        && d.criadoPor == request.auth.token.email
+        && !d.keys().hasAny(['transferidoPor', 'transferidoEm', 'atualizadoEm', 'atualizadoPor']);
+    }
+
+    // Transferência entre núcleos: o documento mantém o ID e é criado no mesmo batch que
+    // apaga o original na outra coleção. Criação e última atualização vêm do original.
+    function transferenciaValida(colecao, id, d) {
+      let origem = /databases/$(database)/documents/$(d.transferidoDe)/$(id);
+      return d.keys().hasAll(['transferidoPor', 'transferidoEm'])
+        && colecaoDeNucleo(d.transferidoDe) && d.transferidoDe != colecao
+        && d.transferidoPor == request.auth.token.email
+        && d.transferidoEm == request.time
+        && exists(origem) && !existsAfter(origem)
+        && !d.diff(get(origem).data).affectedKeys().hasAny(['criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor']);
     }
 
     // Lista de acesso: cada pessoa só consegue ver se o próprio e-mail está liberado.
@@ -42,14 +64,15 @@ service cloud.firestore {
       allow read: if colecaoDeNucleo(colecao) && autorizado();
 
       allow create: if colecaoDeNucleo(colecao) && autorizado()
-        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'notificacao'])
+        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'notificacao', 'transferidoDe', 'transferidoPor', 'transferidoEm', 'atualizadoEm', 'atualizadoPor'])
         && processoValido(request.resource.data)
-        && request.resource.data.criadoEm == request.time
-        && request.resource.data.criadoPor == request.auth.token.email;
+        && (request.resource.data.keys().hasAny(['transferidoDe'])
+              ? transferenciaValida(colecao, id, request.resource.data)
+              : criacaoComum(request.resource.data));
 
       allow update: if colecaoDeNucleo(colecao) && autorizado()
-        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'notificacao'])
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['criadoEm', 'criadoPor'])
+        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'notificacao', 'transferidoDe', 'transferidoPor', 'transferidoEm'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['criadoEm', 'criadoPor', 'transferidoDe', 'transferidoPor', 'transferidoEm'])
         && processoValido(request.resource.data)
         && request.resource.data.atualizadoEm == request.time
         && request.resource.data.atualizadoPor == request.auth.token.email;

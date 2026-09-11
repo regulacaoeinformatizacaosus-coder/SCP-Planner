@@ -573,25 +573,34 @@ async function transferirProcesso(id, item, destId) {
     progresso: item.progresso || '',
     itens: item.itens || [],
     obs: item.obs || '',
-    notificacao: true
+    notificacao: true,
+    transferidoDe: nucleoAtual().colecao
   };
+  // Mantém quem criou e a última atualização (as regras exigem que sejam iguais ao original)
+  const historico = Object.fromEntries(['criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor']
+    .filter(k => item[k] != null)
+    .map(k => [k, item[k]]));
 
   if (modo === 'firebase') {
+    // Mesmo ID no destino: as regras conferem que o original é apagado neste batch
     const batch = fs.writeBatch(db);
-    batch.set(fs.doc(fs.collection(db, dest.colecao)), {
+    batch.set(fs.doc(db, dest.colecao, id), {
       ...dadosBase,
-      criadoEm: fs.serverTimestamp(),
-      criadoPor: usuario.email
+      ...historico,
+      transferidoPor: usuario.email,
+      transferidoEm: fs.serverTimestamp()
     });
     batch.delete(fs.doc(db, nucleoAtual().colecao, id));
     await batch.commit();
     return;
   }
-  
-  const localDest = JSON.parse(localStorage.getItem(dest.chaveLocal) || '[]');
-  localDest.push({ ...dadosBase, id: `local_${Date.now()}`, criadoEm: Date.now() });
+
+  // Núcleo ainda não aberto neste navegador: começa como começaria ao abrir
+  const salvosDest = JSON.parse(localStorage.getItem(dest.chaveLocal) || 'null');
+  const localDest = Array.isArray(salvosDest) ? salvosDest : (dest.temQuadro ? processosDoQuadro() : []);
+  localDest.push({ ...dadosBase, ...historico, id, transferidoEm: Date.now() });
   localStorage.setItem(dest.chaveLocal, JSON.stringify(localDest));
-  
+
   processos = processos.filter(p => p.id !== id);
   salvarLocalmente();
   render();
@@ -791,6 +800,9 @@ function htmlProcesso(p) {
   const feitos = itens.filter(i => i.feito).length;
   const atualizado = paraMillis(p.atualizadoEm);
   const atualizadoPor = p.atualizadoPor ? ` por ${String(p.atualizadoPor).split('@')[0]}` : '';
+  const transferido = paraMillis(p.transferidoEm);
+  const transferidoPor = p.transferidoPor ? ` por ${String(p.transferidoPor).split('@')[0]}` : '';
+  const origem = Object.values(NUCLEOS).find(n => n.colecao === p.transferidoDe);
 
   const htmlItens = itens.length ? `
     <div class="checklist">
@@ -839,6 +851,7 @@ function htmlProcesso(p) {
       <div class="process-progresso">
         <button type="button" class="progress-cell ${p.progresso ? '' : 'is-empty'}" data-acao="progresso" title="Clique para registrar a última coisa feita">${p.progresso ? escapeHtml(p.progresso) : 'Registrar progresso'}</button>
         ${atualizado ? `<p class="process-meta">Atualizado em ${formatarData(atualizado)}${escapeHtml(atualizadoPor)}</p>` : ''}
+        ${transferido && origem ? `<p class="process-meta">Recebido de ${escapeHtml(origem.rotulo)} em ${formatarData(transferido)}${escapeHtml(transferidoPor)}</p>` : ''}
       </div>
 
       <div class="process-actions">
