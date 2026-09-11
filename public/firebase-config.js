@@ -1,5 +1,5 @@
 // ============================================================================
-// CONFIGURAÇÃO DO FIREBASE - SCP PLANNER
+// CONFIGURAÇÃO DO FIREBASE - GRIS PLANNER
 // Projeto: scp-planner-528ed (conta regulacaoeinformatizacaosus@gmail.com)
 // ============================================================================
 // Valores de: Firebase Console › Configurações do projeto › Seus aplicativos › Web

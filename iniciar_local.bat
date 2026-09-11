@@ -1,7 +1,7 @@
 @echo off
-title SCP Planner - Setor de Comandos de Pagamento
+title GRIS Planner
 echo ========================================================
-echo   SCP PLANNER - SETOR DE COMANDOS DE PAGAMENTO
+echo   GRIS PLANNER - SCP ^| PROCESSAMENTO DE DADOS
 echo   Regulacao e Informatizacao SUS
 echo ========================================================
 echo.

@@ -1,4 +1,4 @@
-# SCP Planner — Publicação (GitHub Pages) e Dados (Firebase)
+# GRIS Planner — Publicação (GitHub Pages) e Dados (Firebase)
 
 - **Site**: GitHub Pages, publicado a partir da pasta `public/` do repositório
   `regulacaoeinformatizacaosus-coder/SCP-Planner`.

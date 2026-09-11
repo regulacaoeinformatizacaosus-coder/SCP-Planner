@@ -251,7 +251,7 @@ function mostrarPortao(tela, texto = '') {
   const email = usuario?.email || '';
   const telas = {
     login: {
-      titulo: 'Entrar no SCP Planner',
+      titulo: 'Entrar no GRIS Planner',
       texto: 'Use a sua conta Google liberada pelo setor para ver e editar os processos.',
       botoes: ['btnEntrarGoogle']
     },
@@ -1159,7 +1159,7 @@ function atualizarCabecalhoNucleo() {
   const n = nucleoAtual();
   $('nucleoNome').textContent = n.nome;
   $('printTitulo').textContent = n.rotulo === n.nome ? n.nome : `${n.rotulo} - ${n.nome}`;
-  document.title = `SCP Planner - ${n.nome}`;
+  document.title = `GRIS Planner - ${n.nome}`;
   document.querySelectorAll('[data-nucleo]').forEach(botao => {
     botao.setAttribute('aria-pressed', String(botao.dataset.nucleo === nucleo));
   });
