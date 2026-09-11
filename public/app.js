@@ -222,13 +222,13 @@ function mostrarPortao(tela, texto = '') {
     },
     negado: {
       titulo: 'Acesso ainda não liberado',
-      texto: `O e-mail ${email} não está na lista de acesso do SCP Planner. Peça ao responsável pelo sistema para liberar e depois clique em "Tentar novamente".`,
+      texto: `Você entrou como ${email}, mas essa conta não está liberada. No Firebase, a coleção "autorizados" precisa ter um documento com o ID exatamente igual a: ${email.toLowerCase()}`,
       botoes: ['btnTentarNovamente', 'btnTrocarConta']
     },
     erro: {
       titulo: 'Não foi possível conectar',
       texto: texto || 'Verifique sua conexão com a internet e tente novamente.',
-      botoes: usuario ? ['btnTentarNovamente', 'btnTrocarConta'] : ['btnTentarNovamente']
+      botoes: usuario ? ['btnTentarNovamente', 'btnTrocarConta'] : ['btnEntrarGoogle', 'btnTentarNovamente']
     }
   }[tela];
 
@@ -384,7 +384,7 @@ async function aoMudarUsuario(user, config) {
     console.error('Erro ao verificar acesso:', err);
     if (usuario !== user) return;
     definirStatusConexao('offline', 'Sem acesso');
-    mostrarPortao('negado');
+    mostrarPortao('erro', `Não foi possível verificar o acesso de ${user.email}. Código: ${err.code || err.message}`);
     return;
   }
 
@@ -397,9 +397,9 @@ async function aoMudarUsuario(user, config) {
     console.error('Erro no Firestore:', error);
     pararSincronizacao();
     definirStatusConexao('offline', 'Desconectado');
-    mostrarPortao('erro', error.code === 'permission-denied'
+    mostrarPortao('erro', (error.code === 'permission-denied'
       ? 'Sua conta não tem permissão para acessar os processos.'
-      : 'A conexão com o banco de dados foi perdida.');
+      : 'A conexão com o banco de dados foi perdida.') + ` Código: ${error.code || error.message}`);
   });
 }
 
@@ -421,8 +421,8 @@ async function entrarComGoogle() {
       await authApi.signInWithRedirect(auth, provider);
       return;
     }
-    const mensagem = err.code in mensagens ? mensagens[err.code] : 'Não foi possível entrar. Tente novamente.';
-    if (mensagem) showToast(mensagem, 'error');
+    const mensagem = err.code in mensagens ? mensagens[err.code] : 'Não foi possível entrar com o Google.';
+    if (mensagem) mostrarPortao('erro', `${mensagem} Código: ${err.code || err.message}`);
   }
 }
 
