@@ -555,7 +555,12 @@ class MainWindow(QMainWindow):
             item.setData(Qt.ItemDataRole.UserRole, c_dict['id'])
 
         self.table.setRowCount(0)
-        tarefas = Tarefa.listar_por_mes(self.mes_atual, self.cat_id_filtro)
+        categoria = Categoria.obter_por_id(self.cat_id_filtro) if self.cat_id_filtro else None
+        categoria_geral = categoria and dict(categoria).get('nome', '').strip().casefold() == 'geral'
+        if categoria_geral:
+            tarefas = Tarefa.listar_por_categoria(self.cat_id_filtro)
+        else:
+            tarefas = Tarefa.listar_por_mes(self.mes_atual, self.cat_id_filtro)
         self.atualizar_opcoes_filtros(tarefas)
         tarefas = [t for t in tarefas if self.tarefa_corresponde_a_filtros(t)]
         
@@ -842,12 +847,19 @@ class MainWindow(QMainWindow):
         for t in Tarefa.listar_todas_pendentes():
             t_dict = dict(t)
             if not t_dict['data_vencimento']: continue
-            venc = datetime.strptime(t_dict['data_vencimento'], "%Y-%m-%d %H:%M:%S")
+            try:
+                venc = datetime.strptime(t_dict['data_vencimento'], "%Y-%m-%d %H:%M:%S")
+            except (TypeError, ValueError):
+                continue
             if agora >= venc:
                 enviar = False
                 if not t_dict['notificado']: enviar = True
                 elif t_dict.get('alert_interval', 0) > 0 and t_dict.get('last_alerted_at'):
-                    prox = datetime.strptime(t_dict['last_alerted_at'], "%Y-%m-%d %H:%M:%S") + timedelta(minutes=t_dict['alert_interval'])
+                    try:
+                        ultimo_alerta = datetime.strptime(t_dict['last_alerted_at'], "%Y-%m-%d %H:%M:%S")
+                    except (TypeError, ValueError):
+                        ultimo_alerta = None
+                    prox = ultimo_alerta + timedelta(minutes=t_dict['alert_interval']) if ultimo_alerta else agora
                     if agora >= prox: enviar = True
                 if enviar:
                     self.tray.showMessage("🚨 ALERTA GCP", f"Demanda: {t_dict['titulo']}", QSystemTrayIcon.MessageIcon.Warning)

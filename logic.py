@@ -73,6 +73,19 @@ class Tarefa:
         return tarefas
 
     @staticmethod
+    def listar_por_categoria(categoria_id):
+        conn, cursor = conectar_db()
+        cursor.execute("""
+            SELECT t.*, c.nome as categoria_nome FROM tarefas t
+            JOIN categorias c ON t.categoria_id = c.id
+            WHERE t.categoria_id = ?
+            ORDER BY t.status DESC, t.data_vencimento ASC, t.priority DESC
+        """, (categoria_id,))
+        tarefas = cursor.fetchall()
+        conn.close()
+        return tarefas
+
+    @staticmethod
     def listar_todas_pendentes(mes_referencia=None):
         conn, cursor = conectar_db()
         consulta = """
