@@ -16,37 +16,49 @@
     tailwind.config = {
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
           colors: {
             brand: '#0b4a7a',
-            critica: '#dc2626',
-            alta: '#ea580c',
-            media: '#ca8a04',
+            critica: '#ef4444',
+            alta: '#f97316',
+            media: '#eab308',
             baixa: '#94a3b8',
             sus: {
               light: '#e0f2fe',
-              DEFAULT: '#0369a1',
-              dark: '#075985',
+              DEFAULT: '#0284c7',
+              dark: '#0369a1',
             }
+          },
+          boxShadow: {
+            'card': '0 2px 8px -2px rgba(0, 0, 0, 0.05), 0 4px 12px -4px rgba(0, 0, 0, 0.05)',
+            'float': '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
           }
         }
       }
     }
   </script>
   <style type="text/tailwindcss">
+    @layer base {
+      body {
+        @apply bg-slate-50 text-slate-800 antialiased selection:bg-sus-light selection:text-sus-dark;
+      }
+    }
     @layer components {
       /* Estilos utilitários globais temporários para transição suave */
       .btn {
-        @apply inline-flex items-center justify-center gap-1.5 text-[0.9rem] font-semibold px-4 py-2 rounded-md border border-transparent cursor-pointer whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-wait focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sus;
+        @apply inline-flex items-center justify-center gap-2 text-[0.9rem] font-medium px-5 py-2.5 rounded-lg border border-transparent cursor-pointer whitespace-nowrap transition-all duration-200 disabled:opacity-60 disabled:cursor-wait focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sus active:scale-[0.98];
       }
       .btn-primary {
-        @apply bg-sus text-white hover:bg-sus-dark;
+        @apply bg-sus text-white hover:bg-sus-dark shadow-sm hover:shadow-md;
       }
       .btn-secondary {
-        @apply bg-white text-slate-600 border-slate-300 hover:bg-slate-50 hover:text-slate-900;
+        @apply bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 shadow-sm hover:border-slate-400;
       }
 
       .kpi-card {
-        @apply flex flex-col items-start gap-1 p-4 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer transition-all hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sus;
+        @apply flex flex-col items-start gap-2 p-5 bg-white border border-slate-200/60 rounded-2xl shadow-card cursor-pointer transition-all duration-300 hover:border-brand/30 hover:shadow-float hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sus;
       }
       .kpi-card.active {
         @apply ring-1 ring-inset ring-current border-current;
@@ -61,69 +73,66 @@
         @apply text-green-700;
       }
       .kpi-label {
-        @apply text-xs font-medium text-slate-500;
+        @apply text-[0.8rem] font-semibold text-slate-500 uppercase tracking-wide;
       }
       .kpi-value {
-        @apply text-3xl font-bold leading-none tabular-nums;
+        @apply text-4xl font-extrabold tracking-tight tabular-nums mt-1;
       }
 
       /* Modais e Formulários Beautification */
       .modal-backdrop {
-        @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-200;
+        @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300;
       }
       .modal-card {
-        @apply w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-full scale-100 transition-transform duration-200;
+        @apply w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] scale-100 transition-transform duration-300;
       }
       .modal-header {
-        @apply flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white;
+        @apply flex items-center justify-between px-7 py-5 border-b border-slate-100 bg-white;
       }
       .modal-header h2 {
-        @apply text-lg font-bold text-slate-800;
+        @apply text-xl font-bold text-slate-800 tracking-tight;
       }
       .modal-body {
-        @apply p-6 overflow-y-auto flex flex-col gap-5;
+        @apply p-7 overflow-y-auto flex flex-col gap-6;
       }
       .modal-footer {
-        @apply flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50;
+        @apply flex justify-end gap-3 px-7 py-5 border-t border-slate-100 bg-slate-50/80;
       }
       .form-group label, .form-label {
-        @apply block text-sm font-semibold text-slate-700 mb-1.5;
+        @apply block text-sm font-semibold text-slate-700 mb-2;
       }
       .form-group input, .form-group select, .form-group textarea {
-        @apply w-full px-3.5 py-2.5 bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all;
+        @apply w-full px-4 py-3 bg-white border border-slate-300 text-slate-800 text-sm rounded-xl focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all shadow-sm;
       }
       
       .btn-icon {
-        @apply inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand;
+        @apply inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand;
       }
 
-      /* Lista de processos (Board) */
+      /* Lista de processos (Board) - Refinada para parecer cartões em lista */
       .board {
-        @apply bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden;
+        @apply bg-transparent;
       }
       .board-head {
-        @apply grid gap-5 px-6 py-3.5 bg-slate-50 border-b border-slate-200 text-[0.75rem] font-bold uppercase tracking-wider text-slate-500;
+        @apply grid gap-6 px-7 py-4 mb-3 bg-slate-200/50 rounded-xl border border-slate-200/50 text-[0.75rem] font-bold uppercase tracking-widest text-slate-500 shadow-sm;
         grid-template-columns: minmax(0, 1.25fr) 180px 100px 160px minmax(0, 1fr) 118px;
       }
       .process {
-        @apply grid gap-5 px-6 py-4 items-start border-b border-slate-100 relative transition-colors hover:bg-slate-50;
+        @apply grid gap-6 px-7 py-5 mb-3 bg-white rounded-xl shadow-sm border border-slate-200/60 items-center relative transition-all hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5;
         grid-template-columns: minmax(0, 1.25fr) 180px 100px 160px minmax(0, 1fr) 118px;
       }
-      .process:last-child {
-        @apply border-b-0;
-      }
-      /* Fake left border for urgency */
+      /* Círculo indicador de urgência em vez de borda inteira */
       .process::before {
         content: '';
-        @apply absolute left-0 top-0 bottom-0 w-1;
+        @apply absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 rounded-r-md;
       }
       .process.urg-critica::before { @apply bg-critica; }
       .process.urg-alta::before { @apply bg-alta; }
       .process.urg-media::before { @apply bg-media; }
-      .process.urg-baixa::before { @apply bg-baixa; }
+      .process.urg-baixa::before { @apply bg-slate-300; }
       
       .process-title {
-        @apply text-base font-semibold leading-snug text-slate-900 break-words;
+        @apply text-[1.05rem] font-bold leading-snug text-slate-800 break-words;
       }
     }
   </style>
@@ -139,7 +148,7 @@
   </div>
 
   <!-- Cabeçalho principal -->
-  <header class="sticky top-0 z-40 bg-brand text-white shadow-sm">
+  <header class="sticky top-0 z-40 bg-gradient-to-r from-[#07365a] via-brand to-sus-dark text-white shadow-lg border-b border-white/10">
     <div class="w-full px-8 py-3 flex justify-between items-center gap-4">
       <div class="flex items-center gap-3.5 min-w-0">
         <span class="bg-white text-brand text-[0.68rem] font-bold leading-[1.15] tracking-wide text-center px-2 py-1.5 rounded-md">SUS<br>GRIS</span>
