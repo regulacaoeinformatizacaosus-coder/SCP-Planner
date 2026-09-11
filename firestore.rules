@@ -15,6 +15,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/autorizados/$(request.auth.token.email.lower()));
     }
 
+    // Uma coleção por núcleo do setor: SCP e Processamento de Dados
+    function colecaoDeNucleo(colecao) {
+      return colecao in ['processos_scp', 'processos_pd'];
+    }
+
     function processoValido(d) {
       return d.descricao is string && d.descricao.size() > 0 && d.descricao.size() <= 500
         && d.quem is string && d.quem.size() <= 200
@@ -32,23 +37,23 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    match /processos_scp/{id} {
-      allow read: if autorizado();
+    match /{colecao}/{id} {
+      allow read: if colecaoDeNucleo(colecao) && autorizado();
 
-      allow create: if autorizado()
+      allow create: if colecaoDeNucleo(colecao) && autorizado()
         && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor'])
         && processoValido(request.resource.data)
         && request.resource.data.criadoEm == request.time
         && request.resource.data.criadoPor == request.auth.token.email;
 
-      allow update: if autorizado()
+      allow update: if colecaoDeNucleo(colecao) && autorizado()
         && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'])
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['criadoEm', 'criadoPor'])
         && processoValido(request.resource.data)
         && request.resource.data.atualizadoEm == request.time
         && request.resource.data.atualizadoPor == request.auth.token.email;
 
-      allow delete: if autorizado();
+      allow delete: if colecaoDeNucleo(colecao) && autorizado();
     }
 
     // Qualquer outra coleção fica bloqueada

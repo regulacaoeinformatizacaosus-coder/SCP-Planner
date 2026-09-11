@@ -3,7 +3,8 @@
 - **Site**: GitHub Pages, publicado a partir da pasta `public/` do repositório
   `regulacaoeinformatizacaosus-coder/SCP-Planner`.
   Endereço: **https://regulacaoeinformatizacaosus-coder.github.io/SCP-Planner/**
-- **Dados**: Cloud Firestore do projeto Firebase **`scp-planner-528ed`**, coleção `processos_scp`.
+- **Dados**: Cloud Firestore do projeto Firebase **`scp-planner-528ed`**, uma coleção por núcleo
+  (chave no topo do site): `processos_scp` (SCP) e `processos_pd` (Processamento de Dados).
 - **Acesso**: login com Google. Só entram os e-mails cadastrados na coleção `autorizados`.
 
 Sem a configuração do Firebase, o site funciona em modo "Só neste navegador" (sem login, dados no `localStorage`).

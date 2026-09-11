@@ -1,12 +1,29 @@
 import { firebaseConfig as defaultConfigFile } from './firebase-config.js';
 
 const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.13.0';
-const COLECAO = 'processos_scp';
 const COLECAO_AUTORIZADOS = 'autorizados';
-const CHAVE_LOCAL = 'scp_local_processos_v2';
 const CHAVE_CONFIG = 'scp_firebase_config';
+const CHAVE_NUCLEO = 'scp_nucleo';
 
-const EQUIPE_PADRAO = ['Alzira', 'Camila', 'Cássio', 'Leonardo', 'Lucas', 'Tito', 'Comissão', 'Laboratórios'];
+// Núcleos do setor: cada um com a sua coleção no Firestore
+const NUCLEOS = {
+  scp: {
+    rotulo: 'SCP',
+    nome: 'Setor de Comandos de Pagamento',
+    colecao: 'processos_scp',
+    chaveLocal: 'scp_local_processos_v2',
+    equipe: ['Alzira', 'Camila', 'Cássio', 'Leonardo', 'Lucas', 'Tito', 'Comissão', 'Laboratórios'],
+    temQuadro: true
+  },
+  pd: {
+    rotulo: 'Processamento de Dados',
+    nome: 'Processamento de Dados',
+    colecao: 'processos_pd',
+    chaveLocal: 'scp_local_processos_pd',
+    equipe: [],
+    temQuadro: false
+  }
+};
 
 const URGENCIAS = {
   Critica: { label: 'Crítica', peso: 4 },
@@ -99,6 +116,9 @@ let modo = 'carregando'; // 'carregando' | 'firebase' | 'local'
 let filtroRapido = 'todos';
 let ultimaListaPessoas = '';
 let edicaoAtiva = false;
+let seletorModal = null;
+let acessoLiberado = false;
+let nucleo = lerNucleoSalvo();
 
 const $ = (id) => document.getElementById(id);
 
@@ -111,7 +131,7 @@ const demandaForm = $('demandaForm');
 const modalTitle = $('modalTitle');
 const formDemandaId = $('formDemandaId');
 const inputDescricao = $('inputDescricao');
-const inputQuem = $('inputQuem');
+const seletorQuem = $('seletorQuem');
 const inputUrgencia = $('inputUrgencia');
 const inputStatus = $('inputStatus');
 const inputProgresso = $('inputProgresso');
@@ -133,6 +153,20 @@ const inputFirebaseConfig = $('inputFirebaseConfig');
 // ============================================================================
 // UTILITÁRIOS
 // ============================================================================
+function nucleoAtual() {
+  return NUCLEOS[nucleo];
+}
+
+function lerNucleoSalvo() {
+  try {
+    const salvo = localStorage.getItem(CHAVE_NUCLEO);
+    if (salvo in NUCLEOS) return salvo;
+  } catch {
+    // navegador sem localStorage: usa o padrão
+  }
+  return 'scp';
+}
+
 function escapeHtml(valor) {
   return String(valor ?? '').replace(/[&<>'"]/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])
@@ -350,7 +384,7 @@ async function initFirebase() {
     auth = authApi.getAuth(app);
     authApi.useDeviceLanguage(auth);
 
-    authUnsubscribe = authApi.onAuthStateChanged(auth, (user) => aoMudarUsuario(user, config));
+    authUnsubscribe = authApi.onAuthStateChanged(auth, aoMudarUsuario);
   } catch (err) {
     console.error('Falha ao inicializar o Firebase:', err);
     definirStatusConexao('offline', 'Desconectado');
@@ -358,9 +392,10 @@ async function initFirebase() {
   }
 }
 
-async function aoMudarUsuario(user, config) {
+async function aoMudarUsuario(user) {
   pararSincronizacao();
   usuario = user;
+  acessoLiberado = false;
   processos = [];
   atualizarUsuarioNoHeader();
 
@@ -392,17 +427,31 @@ async function aoMudarUsuario(user, config) {
     return;
   }
 
-  firestoreUnsubscribe = fs.onSnapshot(fs.collection(db, COLECAO), (snapshot) => {
+  acessoLiberado = true;
+  assinarProcessos();
+}
+
+// Escuta em tempo real a coleção do núcleo selecionado
+function assinarProcessos() {
+  pararSincronizacao();
+  processos = [];
+  modo = 'carregando';
+  definirStatusConexao('connecting', 'Conectando...');
+  mostrarLista();
+  render();
+
+  const { colecao, nome } = nucleoAtual();
+  firestoreUnsubscribe = fs.onSnapshot(fs.collection(db, colecao), (snapshot) => {
     processos = snapshot.docs.map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
     modo = 'firebase';
-    definirStatusConexao('online', 'Online', `Sincronizado com o Firestore (${config.projectId})`);
+    definirStatusConexao('online', 'Online', `Sincronizado com o Firestore (${db.app.options.projectId} / ${colecao})`);
     render();
   }, (error) => {
     console.error('Erro no Firestore:', error);
     pararSincronizacao();
     definirStatusConexao('offline', 'Desconectado');
     mostrarPortao('erro', (error.code === 'permission-denied'
-      ? 'Sua conta não tem permissão para acessar os processos.'
+      ? `Sua conta não tem permissão para acessar os processos de ${nome}.`
       : 'A conexão com o banco de dados foi perdida.') + ` Código: ${error.code || error.message}`);
   });
 }
@@ -447,7 +496,7 @@ function ativarModoLocal() {
 
   let salvos = null;
   try {
-    salvos = JSON.parse(localStorage.getItem(CHAVE_LOCAL) || 'null');
+    salvos = JSON.parse(localStorage.getItem(nucleoAtual().chaveLocal) || 'null');
   } catch (e) {
     console.warn('Dados locais inválidos:', e);
   }
@@ -455,7 +504,7 @@ function ativarModoLocal() {
   if (Array.isArray(salvos)) {
     processos = salvos.map((p, i) => ({ ...p, id: p.id || `local_${Date.now()}_${i}` }));
   } else {
-    processos = processosDoQuadro();
+    processos = nucleoAtual().temQuadro ? processosDoQuadro() : [];
     salvarLocalmente();
   }
   render();
@@ -463,7 +512,7 @@ function ativarModoLocal() {
 
 function salvarLocalmente() {
   try {
-    localStorage.setItem(CHAVE_LOCAL, JSON.stringify(processos));
+    localStorage.setItem(nucleoAtual().chaveLocal, JSON.stringify(processos));
   } catch (e) {
     console.error('Falha ao salvar localmente:', e);
     showToast('Não foi possível salvar neste navegador.', 'error');
@@ -475,7 +524,7 @@ function salvarLocalmente() {
 // ============================================================================
 async function criarProcesso(dados) {
   if (modo === 'firebase') {
-    await fs.addDoc(fs.collection(db, COLECAO), {
+    await fs.addDoc(fs.collection(db, nucleoAtual().colecao), {
       ...dados,
       criadoEm: fs.serverTimestamp(),
       criadoPor: usuario.email
@@ -489,7 +538,7 @@ async function criarProcesso(dados) {
 
 async function atualizarProcesso(id, dados) {
   if (modo === 'firebase') {
-    await fs.updateDoc(fs.doc(db, COLECAO, id), {
+    await fs.updateDoc(fs.doc(db, nucleoAtual().colecao, id), {
       ...dados,
       atualizadoEm: fs.serverTimestamp(),
       atualizadoPor: usuario.email
@@ -505,7 +554,7 @@ async function atualizarProcesso(id, dados) {
 
 async function removerProcesso(id) {
   if (modo === 'firebase') {
-    await fs.deleteDoc(fs.doc(db, COLECAO, id));
+    await fs.deleteDoc(fs.doc(db, nucleoAtual().colecao, id));
     return;
   }
   processos = processos.filter(p => p.id !== id);
@@ -588,14 +637,17 @@ function limparFiltros() {
 // ============================================================================
 // RENDERIZAÇÃO
 // ============================================================================
-function atualizarListasDePessoas() {
+function nomesConhecidos(extras = []) {
   const porChave = new Map();
-  [...processos.flatMap(p => pessoasDe(p.quem)), ...EQUIPE_PADRAO].forEach(nome => {
+  [...processos.flatMap(p => pessoasDe(p.quem)), ...nucleoAtual().equipe, ...extras].forEach(nome => {
     const chave = normalizar(nome);
     if (!porChave.has(chave)) porChave.set(chave, nome);
   });
-  const nomes = [...porChave.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return [...porChave.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
 
+function atualizarListasDePessoas() {
+  const nomes = nomesConhecidos();
   const assinatura = nomes.join('|');
   if (assinatura === ultimaListaPessoas) return;
   ultimaListaPessoas = assinatura;
@@ -604,8 +656,72 @@ function atualizarListasDePessoas() {
   filterQuem.innerHTML = '<option value="">Quem: todos</option>' +
     nomes.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
   filterQuem.value = nomes.includes(selecionado) ? selecionado : '';
+}
 
-  $('listaServidores').innerHTML = nomes.map(n => `<option value="${escapeHtml(n)}">`).join('');
+// ["Alzira", "Cássio", "Tito"] -> "Alzira, Cássio e Tito"
+function formatarPessoas(nomes) {
+  if (nomes.length <= 1) return nomes.join('');
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+}
+
+// Pessoas para marcar/desmarcar (uma ou mais), com campo para incluir alguém novo
+function montarSeletorPessoas(container, nomesIniciais) {
+  let selecionados = [...nomesIniciais];
+  const marcado = (nome) => selecionados.some(s => normalizar(s) === normalizar(nome));
+
+  container.innerHTML = `
+    <div class="people-options"></div>
+    <div class="people-add">
+      <input type="text" placeholder="Incluir outra pessoa..." maxlength="60" autocomplete="off" aria-label="Nome de outra pessoa">
+      <button type="button" class="btn btn-secondary">Incluir</button>
+    </div>`;
+  const opcoes = container.querySelector('.people-options');
+  const campo = container.querySelector('input');
+
+  const desenhar = () => {
+    opcoes.innerHTML = nomesConhecidos(selecionados).map(n => `
+      <button type="button" class="person-option" data-nome="${escapeHtml(n)}" aria-pressed="${marcado(n)}">
+        <span class="avatar">${escapeHtml(iniciais(n))}</span>${escapeHtml(n)}
+      </button>`).join('');
+  };
+
+  const incluir = () => {
+    pessoasDe(campo.value).forEach(n => {
+      if (!marcado(n)) selecionados.push(n);
+    });
+    campo.value = '';
+    desenhar();
+  };
+
+  opcoes.addEventListener('click', (e) => {
+    const botao = e.target.closest('.person-option');
+    if (!botao) return;
+    const nome = botao.dataset.nome;
+    const estava = marcado(nome);
+    selecionados = estava
+      ? selecionados.filter(s => normalizar(s) !== normalizar(nome))
+      : [...selecionados, nome];
+    botao.setAttribute('aria-pressed', String(!estava));
+  });
+  container.querySelector('.people-add button').addEventListener('click', () => {
+    incluir();
+    campo.focus();
+  });
+  campo.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      incluir();
+    }
+  });
+
+  desenhar();
+  return {
+    // Considera também um nome digitado e ainda não incluído
+    valor: () => {
+      if (campo.value.trim()) incluir();
+      return formatarPessoas(selecionados);
+    }
+  };
 }
 
 function atualizarKpis() {
@@ -665,9 +781,11 @@ function htmlProcesso(p) {
       </div>
 
       <div class="process-quem">
-        ${pessoas.length
-          ? pessoas.map(n => `<span class="person"><span class="avatar">${escapeHtml(iniciais(n))}</span>${escapeHtml(n)}</span>`).join('')
-          : '<span class="person person-empty">A definir</span>'}
+        <button type="button" class="quem-cell" data-acao="quem" title="Clique para marcar quem é responsável">
+          ${pessoas.length
+            ? pessoas.map(n => `<span class="person"><span class="avatar">${escapeHtml(iniciais(n))}</span>${escapeHtml(n)}</span>`).join('')
+            : '<span class="person person-empty">+ Definir</span>'}
+        </button>
       </div>
 
       <div class="process-urgencia">
@@ -723,9 +841,11 @@ function render() {
     $('emptyTitle').textContent = modo === 'carregando' ? 'Conectando ao banco de dados...'
       : semNada ? 'Nenhum processo cadastrado' : 'Nenhum processo encontrado';
     $('emptyText').textContent = modo === 'carregando' ? 'Aguarde um instante.'
-      : semNada ? 'Carregue os processos do quadro do setor ou cadastre um novo.' : 'Nenhum processo corresponde aos filtros aplicados.';
+      : semNada
+        ? (nucleoAtual().temQuadro ? 'Carregue os processos do quadro do setor ou cadastre um novo.' : `Cadastre o primeiro processo de ${nucleoAtual().nome}.`)
+        : 'Nenhum processo corresponde aos filtros aplicados.';
     $('btnLimparVazio').hidden = semNada || modo === 'carregando';
-    $('btnCarregarQuadro').hidden = !semNada || modo === 'carregando';
+    $('btnCarregarQuadro').hidden = !semNada || modo === 'carregando' || !nucleoAtual().temQuadro;
     $('btnNovoVazio').hidden = modo === 'carregando';
   }
 }
@@ -744,6 +864,8 @@ processList.addEventListener('click', async (e) => {
     abrirModal(item);
   } else if (botao.dataset.acao === 'progresso') {
     editarProgresso(botao, item);
+  } else if (botao.dataset.acao === 'quem') {
+    editarPessoas(botao, item);
   } else if (botao.dataset.acao === 'concluir') {
     const novoStatus = estaConcluido(item) ? 'Em Andamento' : 'Concluido';
     const ok = await tentar(() => atualizarProcesso(id, { status: novoStatus }), 'Erro ao alterar o status.');
@@ -754,6 +876,68 @@ processList.addEventListener('click', async (e) => {
     if (ok) showToast('Processo excluído.');
   }
 });
+
+// Edição rápida de "Quem?" direto na lista: clicar fora ou Salvar grava, Esc cancela
+function editarPessoas(ancora, item) {
+  const pop = document.createElement('div');
+  pop.className = 'people-popover';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Quem é responsável');
+  pop.innerHTML = `
+    <div class="people-popover-title">Quem?</div>
+    <div class="people-picker"></div>
+    <div class="people-popover-actions">
+      <button type="button" class="btn btn-secondary" data-pop="cancelar">Cancelar</button>
+      <button type="button" class="btn btn-primary" data-pop="salvar">Salvar</button>
+    </div>`;
+  document.body.appendChild(pop);
+  const seletor = montarSeletorPessoas(pop.querySelector('.people-picker'), pessoasDe(item.quem));
+  edicaoAtiva = true;
+
+  // Abre logo abaixo dos nomes (ou acima, se não couber)
+  const r = ancora.getBoundingClientRect();
+  const cabeAbaixo = r.bottom + pop.offsetHeight + 8 <= window.innerHeight;
+  const left = Math.max(12, Math.min(r.left, window.innerWidth - pop.offsetWidth - 12));
+  const top = cabeAbaixo ? r.bottom + 6 : Math.max(12, r.top - pop.offsetHeight - 6);
+  pop.style.left = `${window.scrollX + left}px`;
+  pop.style.top = `${window.scrollY + top}px`;
+
+  const aoClicarFora = (e) => {
+    if (!pop.contains(e.target)) concluir(true);
+  };
+  const aoTeclar = (e) => {
+    if (e.key === 'Escape') concluir(false);
+  };
+
+  let finalizado = false;
+  async function concluir(salvar) {
+    if (finalizado) return;
+    finalizado = true;
+    const novo = seletor.valor();
+    pop.remove();
+    document.removeEventListener('mousedown', aoClicarFora, true);
+    document.removeEventListener('keydown', aoTeclar, true);
+    edicaoAtiva = false;
+
+    if (!salvar || novo === (item.quem || '')) {
+      render();
+      return;
+    }
+    if (novo.length > 200) {
+      showToast('Nomes demais em "Quem?" (máximo de 200 caracteres).', 'error');
+      render();
+      return;
+    }
+    const ok = await tentar(() => atualizarProcesso(item.id, { quem: novo }), 'Erro ao salvar quem é responsável.');
+    if (ok) showToast('Responsáveis atualizados.', 'success');
+    else render();
+  }
+
+  pop.querySelector('[data-pop="salvar"]').addEventListener('click', () => concluir(true));
+  pop.querySelector('[data-pop="cancelar"]').addEventListener('click', () => concluir(false));
+  document.addEventListener('mousedown', aoClicarFora, true);
+  document.addEventListener('keydown', aoTeclar, true);
+}
 
 // Edição rápida do progresso direto na lista: Enter salva, Esc cancela
 function editarProgresso(celula, item) {
@@ -820,7 +1004,7 @@ function abrirModal(item = null) {
   btnSaveModal.textContent = item ? 'Salvar alterações' : 'Cadastrar';
 
   inputDescricao.value = item?.descricao || '';
-  inputQuem.value = item?.quem || '';
+  seletorModal = montarSeletorPessoas(seletorQuem, pessoasDe(item?.quem));
   inputUrgencia.value = item ? normalizarUrgencia(item.urgencia) : 'Media';
   inputStatus.value = item ? normalizarStatus(item.status) : 'Em Andamento';
   inputProgresso.value = item?.progresso || '';
@@ -843,13 +1027,18 @@ demandaForm.addEventListener('submit', async (e) => {
 
   const dados = {
     descricao: inputDescricao.value.trim(),
-    quem: inputQuem.value.trim(),
+    quem: seletorModal.valor(),
     urgencia: inputUrgencia.value,
     status: inputStatus.value,
     progresso: inputProgresso.value.trim(),
     itens,
     obs: inputObs.value.trim()
   };
+
+  if (dados.quem.length > 200) {
+    showToast('Nomes demais em "Quem?" (máximo de 200 caracteres).', 'error');
+    return;
+  }
 
   btnSaveModal.disabled = true;
   const ok = await tentar(
@@ -963,4 +1152,47 @@ searchInput.addEventListener('input', render);
 // Com o Firebase definido no arquivo, não há o que configurar pela tela
 $('btnConfigFirebase').hidden = configValida(defaultConfigFile);
 
+// ============================================================================
+// NÚCLEOS: CHAVE SCP | PROCESSAMENTO DE DADOS
+// ============================================================================
+function atualizarCabecalhoNucleo() {
+  const n = nucleoAtual();
+  $('nucleoNome').textContent = n.nome;
+  $('printTitulo').textContent = n.rotulo === n.nome ? n.nome : `${n.rotulo} - ${n.nome}`;
+  document.title = `SCP Planner - ${n.nome}`;
+  document.querySelectorAll('[data-nucleo]').forEach(botao => {
+    botao.setAttribute('aria-pressed', String(botao.dataset.nucleo === nucleo));
+  });
+}
+
+function trocarNucleo(novo) {
+  if (novo === nucleo || !(novo in NUCLEOS)) return;
+  nucleo = novo;
+  try {
+    localStorage.setItem(CHAVE_NUCLEO, novo);
+  } catch {
+    // navegador sem localStorage: vale só nesta visita
+  }
+
+  // Cada núcleo começa sem filtros
+  searchInput.value = '';
+  filterQuem.value = '';
+  filterUrgencia.value = '';
+  filterStatus.value = '';
+  filtroRapido = 'todos';
+  ultimaListaPessoas = '';
+  atualizarCabecalhoNucleo();
+
+  if (modo === 'local') {
+    ativarModoLocal();
+  } else if (usuario && acessoLiberado) {
+    assinarProcessos();
+  }
+}
+
+document.querySelectorAll('[data-nucleo]').forEach(botao => {
+  botao.addEventListener('click', () => trocarNucleo(botao.dataset.nucleo));
+});
+
+atualizarCabecalhoNucleo();
 initFirebase();
