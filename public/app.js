@@ -540,6 +540,7 @@ async function atualizarProcesso(id, dados) {
   if (modo === 'firebase') {
     await fs.updateDoc(fs.doc(db, nucleoAtual().colecao, id), {
       ...dados,
+      notificacao: false,
       atualizadoEm: fs.serverTimestamp(),
       atualizadoPor: usuario.email
     });
@@ -547,7 +548,7 @@ async function atualizarProcesso(id, dados) {
   }
   const item = processos.find(p => p.id === id);
   if (!item) return;
-  Object.assign(item, dados, { atualizadoEm: Date.now() });
+  Object.assign(item, dados, { atualizadoEm: Date.now(), notificacao: false });
   salvarLocalmente();
   render();
 }
@@ -571,7 +572,8 @@ async function transferirProcesso(id, item, destId) {
     status: item.status,
     progresso: item.progresso,
     itens: item.itens || [],
-    obs: item.obs || ''
+    obs: item.obs || '',
+    notificacao: true
   };
 
   if (modo === 'firebase') {
@@ -639,6 +641,7 @@ function passaFiltros(p) {
   if (filtroRapido === 'abertos' && estaConcluido(p)) return false;
   if (filtroRapido === 'urgentes' && !eUrgente(p)) return false;
   if (filtroRapido === 'concluidos' && !estaConcluido(p)) return false;
+  if (filtroRapido === 'notificacoes' && !p.notificacao) return false;
   return true;
 }
 
@@ -760,6 +763,7 @@ function atualizarKpis() {
   $('kpiAbertos').textContent = processos.filter(p => !estaConcluido(p)).length;
   $('kpiUrgentes').textContent = processos.filter(eUrgente).length;
   $('kpiConcluidos').textContent = processos.filter(estaConcluido).length;
+  $('kpiNotificacoes').textContent = processos.filter(p => p.notificacao).length;
 
   document.querySelectorAll('.kpi-card').forEach(card => {
     const ativo = card.dataset.filtro === filtroRapido;
@@ -807,7 +811,7 @@ function htmlProcesso(p) {
   return `
     <li class="process urg-${urgencia.toLowerCase()} ${concluido ? 'is-done' : ''}" data-id="${escapeHtml(p.id)}">
       <div class="process-main">
-        <h3 class="process-title">${escapeHtml(p.descricao)}</h3>
+        <h3 class="process-title">${p.notificacao ? '<span class="inline-block w-2.5 h-2.5 mr-2 mb-0.5 bg-critica rounded-full animate-pulse" title="Novo processo recebido"></span>' : ''}${escapeHtml(p.descricao)}</h3>
         ${htmlItens}
         ${p.obs ? `<p class="process-obs">${escapeHtml(p.obs)}</p>` : ''}
       </div>

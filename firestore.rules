@@ -27,7 +27,8 @@ service cloud.firestore {
         && d.status in ['Pendente', 'Em Andamento', 'Aguardando', 'Concluido']
         && d.progresso is string && d.progresso.size() <= 1000
         && d.obs is string && d.obs.size() <= 5000
-        && d.itens is list && d.itens.size() <= 200;
+        && d.itens is list && d.itens.size() <= 200
+        && (!d.keys().hasAny(['notificacao']) || d.notificacao is bool);
     }
 
     // Lista de acesso: cada pessoa só consegue ver se o próprio e-mail está liberado.
@@ -41,13 +42,13 @@ service cloud.firestore {
       allow read: if colecaoDeNucleo(colecao) && autorizado();
 
       allow create: if colecaoDeNucleo(colecao) && autorizado()
-        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor'])
+        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'notificacao'])
         && processoValido(request.resource.data)
         && request.resource.data.criadoEm == request.time
         && request.resource.data.criadoPor == request.auth.token.email;
 
       allow update: if colecaoDeNucleo(colecao) && autorizado()
-        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'notificacao'])
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['criadoEm', 'criadoPor'])
         && processoValido(request.resource.data)
         && request.resource.data.atualizadoEm == request.time
