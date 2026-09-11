@@ -9,6 +9,125 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Configuração do Tailwind via CDN (Substitui o CLI já que não há Node.js instalado) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#0b4a7a',
+            critica: '#dc2626',
+            alta: '#ea580c',
+            media: '#ca8a04',
+            baixa: '#94a3b8',
+            sus: {
+              light: '#e0f2fe',
+              DEFAULT: '#0369a1',
+              dark: '#075985',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer components {
+      /* Estilos utilitários globais temporários para transição suave */
+      .btn {
+        @apply inline-flex items-center justify-center gap-1.5 text-[0.9rem] font-semibold px-4 py-2 rounded-md border border-transparent cursor-pointer whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-wait focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sus;
+      }
+      .btn-primary {
+        @apply bg-sus text-white hover:bg-sus-dark;
+      }
+      .btn-secondary {
+        @apply bg-white text-slate-600 border-slate-300 hover:bg-slate-50 hover:text-slate-900;
+      }
+
+      .kpi-card {
+        @apply flex flex-col items-start gap-1 p-4 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer transition-all hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sus;
+      }
+      .kpi-card.active {
+        @apply ring-1 ring-inset ring-current border-current;
+      }
+      .kpi-abertos {
+        @apply text-sus;
+      }
+      .kpi-urgentes {
+        @apply text-critica;
+      }
+      .kpi-concluidos {
+        @apply text-green-700;
+      }
+      .kpi-label {
+        @apply text-xs font-medium text-slate-500;
+      }
+      .kpi-value {
+        @apply text-3xl font-bold leading-none tabular-nums;
+      }
+
+      /* Modais e Formulários Beautification */
+      .modal-backdrop {
+        @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-200;
+      }
+      .modal-card {
+        @apply w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-full scale-100 transition-transform duration-200;
+      }
+      .modal-header {
+        @apply flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white;
+      }
+      .modal-header h2 {
+        @apply text-lg font-bold text-slate-800;
+      }
+      .modal-body {
+        @apply p-6 overflow-y-auto flex flex-col gap-5;
+      }
+      .modal-footer {
+        @apply flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50;
+      }
+      .form-group label, .form-label {
+        @apply block text-sm font-semibold text-slate-700 mb-1.5;
+      }
+      .form-group input, .form-group select, .form-group textarea {
+        @apply w-full px-3.5 py-2.5 bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all;
+      }
+      
+      .btn-icon {
+        @apply inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand;
+      }
+
+      /* Lista de processos (Board) */
+      .board {
+        @apply bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden;
+      }
+      .board-head {
+        @apply grid gap-5 px-6 py-3.5 bg-slate-50 border-b border-slate-200 text-[0.75rem] font-bold uppercase tracking-wider text-slate-500;
+        grid-template-columns: minmax(0, 1.25fr) 180px 100px 160px minmax(0, 1fr) 118px;
+      }
+      .process {
+        @apply grid gap-5 px-6 py-4 items-start border-b border-slate-100 relative transition-colors hover:bg-slate-50;
+        grid-template-columns: minmax(0, 1.25fr) 180px 100px 160px minmax(0, 1fr) 118px;
+      }
+      .process:last-child {
+        @apply border-b-0;
+      }
+      /* Fake left border for urgency */
+      .process::before {
+        content: '';
+        @apply absolute left-0 top-0 bottom-0 w-1;
+      }
+      .process.urg-critica::before { @apply bg-critica; }
+      .process.urg-alta::before { @apply bg-alta; }
+      .process.urg-media::before { @apply bg-media; }
+      .process.urg-baixa::before { @apply bg-baixa; }
+      
+      .process-title {
+        @apply text-base font-semibold leading-snug text-slate-900 break-words;
+      }
+    }
+  </style>
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,41 +139,43 @@
   </div>
 
   <!-- Cabeçalho principal -->
-  <header class="app-header">
-    <div class="container header-content">
-      <div class="logo-group">
-        <span class="badge-sus">SUS<br>GRIS</span>
-        <div class="title-group">
-          <h1>GRIS Planner</h1>
-          <p id="nucleoNome">Setor de Comandos de Pagamento</p>
+  <header class="sticky top-0 z-40 bg-brand text-white shadow-sm">
+    <div class="w-full px-8 py-3 flex justify-between items-center gap-4">
+      <div class="flex items-center gap-3.5 min-w-0">
+        <span class="bg-white text-brand text-[0.68rem] font-bold leading-[1.15] tracking-wide text-center px-2 py-1.5 rounded-md">SUS<br>GRIS</span>
+        <div class="flex flex-col">
+          <h1 class="text-[1.2rem] font-bold leading-tight">GRIS Planner</h1>
+          <p id="nucleoNome" class="text-[0.82rem] text-white/70 whitespace-nowrap overflow-hidden text-ellipsis">Setor de Comandos de Pagamento</p>
         </div>
 
-        <div class="nucleo-switch" role="group" aria-label="Núcleo">
-          <button type="button" data-nucleo="scp" aria-pressed="true">SCP</button>
-          <button type="button" data-nucleo="pd" aria-pressed="false">Processamento de Dados</button>
+        <div class="inline-flex shrink-0 ml-3 p-1 bg-black/20 border border-white/20 rounded-full" role="group" aria-label="Núcleo">
+          <!-- The JS toggles aria-pressed. For Tailwind, we can't do arbitrary aria-pressed styling easily via CDN without JS or custom plugins, but we can use peer/group or just leave the script as is. Wait, Tailwind natively supports aria-pressed: `aria-pressed:bg-white aria-pressed:text-brand aria-pressed:shadow-sm`. Perfect! -->
+          <button type="button" data-nucleo="scp" aria-pressed="true" class="text-[0.82rem] font-semibold text-white/80 bg-transparent border-none rounded-full px-4 py-1.5 whitespace-nowrap cursor-pointer transition-colors hover:text-white aria-pressed:bg-white aria-pressed:text-brand aria-pressed:shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">SCP</button>
+          <button type="button" data-nucleo="pd" aria-pressed="false" class="text-[0.82rem] font-semibold text-white/80 bg-transparent border-none rounded-full px-4 py-1.5 whitespace-nowrap cursor-pointer transition-colors hover:text-white aria-pressed:bg-white aria-pressed:text-brand aria-pressed:shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Processamento de Dados</button>
         </div>
       </div>
 
-      <div class="header-actions">
-        <span id="connectionStatus" class="status-pill connecting" title="Status da conexão com o banco de dados">
-          <span class="status-dot"></span>
+      <div class="flex items-center gap-2.5">
+        <span id="connectionStatus" class="inline-flex items-center gap-2 text-[0.8rem] font-medium px-3 py-1.5 rounded-full bg-white/10 text-white border border-white/20 whitespace-nowrap connecting" title="Status da conexão com o banco de dados">
+          <!-- Note: status-dot logic (online/offline) in JS might rely on .status-pill. I'll leave the classes "connecting", "online", "offline" for JS, but add Tailwind classes for the dot -->
+          <span class="status-dot w-2 h-2 rounded-full bg-slate-300"></span>
           <span id="statusText">Conectando...</span>
         </span>
 
-        <button type="button" class="btn btn-ghost" id="btnImprimir" title="Imprimir quadro">
+        <button type="button" class="btn bg-transparent text-white border border-white/25 hover:bg-white/10" id="btnImprimir" title="Imprimir quadro">
           <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
           <span class="btn-text">Imprimir</span>
         </button>
 
-        <button type="button" class="btn btn-primary" id="btnNovaDemanda">
+        <button type="button" class="btn bg-white text-brand hover:bg-sus-light" id="btnNovaDemanda">
           <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           <span>Novo Processo</span>
         </button>
 
-        <button type="button" class="user-chip" id="btnUsuario" title="Sair da conta" hidden>
-          <span class="avatar" id="userAvatar"></span>
+        <button type="button" class="user-chip inline-flex items-center gap-2 bg-black/20 hover:bg-black/30 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-colors" id="btnUsuario" title="Sair da conta" hidden>
+          <span class="avatar w-5 h-5 rounded-full bg-sus-dark text-xs flex items-center justify-center font-bold" id="userAvatar"></span>
           <span class="user-email" id="userEmail"></span>
-          <span class="user-sair">Sair</span>
+          <span class="user-sair hidden text-red-300">Sair</span>
         </button>
       </div>
     </div>
@@ -84,8 +205,8 @@
     <div id="appContent">
 
     <!-- Indicadores (clique para filtrar) -->
-    <section class="kpi-grid" aria-label="Resumo dos processos">
-      <button type="button" class="kpi-card" data-filtro="todos">
+    <section class="grid grid-cols-4 gap-3.5 mb-4" aria-label="Resumo dos processos">
+      <button type="button" class="kpi-card text-slate-800" data-filtro="todos">
         <span class="kpi-label">Todos</span>
         <span class="kpi-value" id="kpiTotal">0</span>
       </button>
@@ -104,34 +225,34 @@
     </section>
 
     <!-- Busca e filtros -->
-    <section class="toolbar">
-      <div class="search-box">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="search" id="searchInput" placeholder="Buscar processo, responsável ou protocolo 1DOC..." aria-label="Buscar processos">
+    <section class="flex flex-wrap items-center gap-3 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+      <div class="relative flex-1 min-w-[320px]">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="search" id="searchInput" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all placeholder:text-slate-400" placeholder="Buscar processo, responsável ou protocolo 1DOC..." aria-label="Buscar processos">
       </div>
 
-      <div class="filter-group">
-        <select class="filter-select" id="filterQuem" aria-label="Filtrar por responsável">
-          <option value="">Quem: todos</option>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <select class="px-3 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all cursor-pointer hover:bg-white" id="filterQuem" aria-label="Filtrar por responsável">
+          <option value="">👤 Quem: todos</option>
         </select>
 
-        <select class="filter-select" id="filterUrgencia" aria-label="Filtrar por urgência">
-          <option value="">Urgência: todas</option>
-          <option value="Critica">Crítica</option>
-          <option value="Alta">Alta</option>
-          <option value="Media">Média</option>
-          <option value="Baixa">Baixa</option>
+        <select class="px-3 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all cursor-pointer hover:bg-white" id="filterUrgencia" aria-label="Filtrar por urgência">
+          <option value="">⚡ Urgência: todas</option>
+          <option value="Critica">🔴 Crítica</option>
+          <option value="Alta">🟠 Alta</option>
+          <option value="Media">🟡 Média</option>
+          <option value="Baixa">🔵 Baixa</option>
         </select>
 
-        <select class="filter-select" id="filterStatus" aria-label="Filtrar por status">
-          <option value="">Status: todos</option>
+        <select class="px-3 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all cursor-pointer hover:bg-white" id="filterStatus" aria-label="Filtrar por status">
+          <option value="">📋 Status: todos</option>
           <option value="Pendente">Pendente</option>
           <option value="Em Andamento">Em andamento</option>
           <option value="Aguardando">Aguardando</option>
           <option value="Concluido">Concluído</option>
         </select>
 
-        <button type="button" class="btn btn-link" id="btnLimparFiltros" hidden>Limpar filtros</button>
+        <button type="button" class="text-sm font-semibold text-sus hover:text-sus-dark hover:underline px-2 hidden" id="btnLimparFiltros">Limpar filtros</button>
       </div>
     </section>
 
