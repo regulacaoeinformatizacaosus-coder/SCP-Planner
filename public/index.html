@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b4a7a">
+  <title>SCP Planner - Setor de Comandos de Pagamento</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Cabeçalho de impressão -->
+  <div class="print-header">
+    <h2>SCP - Setor de Comandos de Pagamento</h2>
+    <p>Quadro de Processos de Trabalho • Regulação e Informatização SUS • <span id="printData"></span></p>
+  </div>
+
+  <!-- Cabeçalho principal -->
+  <header class="app-header">
+    <div class="container header-content">
+      <div class="logo-group">
+        <span class="badge-sus">SUS<br>SCP</span>
+        <div class="title-group">
+          <h1>SCP Planner</h1>
+          <p>Setor de Comandos de Pagamento</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" id="connectionStatus" class="status-pill connecting" title="Status da conexão com o banco de dados">
+          <span class="status-dot"></span>
+          <span id="statusText">Conectando...</span>
+        </button>
+
+        <button type="button" class="btn btn-ghost" id="btnImprimir" title="Imprimir quadro">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          <span class="btn-text">Imprimir</span>
+        </button>
+
+        <button type="button" class="btn btn-primary" id="btnNovaDemanda">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Novo Processo</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Indicadores (clique para filtrar) -->
+    <section class="kpi-grid" aria-label="Resumo dos processos">
+      <button type="button" class="kpi-card" data-filtro="todos">
+        <span class="kpi-label">Todos</span>
+        <span class="kpi-value" id="kpiTotal">0</span>
+      </button>
+      <button type="button" class="kpi-card kpi-abertos" data-filtro="abertos">
+        <span class="kpi-label">Em aberto</span>
+        <span class="kpi-value" id="kpiAbertos">0</span>
+      </button>
+      <button type="button" class="kpi-card kpi-urgentes" data-filtro="urgentes">
+        <span class="kpi-label">Urgentes em aberto</span>
+        <span class="kpi-value" id="kpiUrgentes">0</span>
+      </button>
+      <button type="button" class="kpi-card kpi-concluidos" data-filtro="concluidos">
+        <span class="kpi-label">Concluídos</span>
+        <span class="kpi-value" id="kpiConcluidos">0</span>
+      </button>
+    </section>
+
+    <!-- Busca e filtros -->
+    <section class="toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="search" id="searchInput" placeholder="Buscar processo, responsável ou protocolo 1DOC..." aria-label="Buscar processos">
+      </div>
+
+      <div class="filter-group">
+        <select class="filter-select" id="filterQuem" aria-label="Filtrar por responsável">
+          <option value="">Quem: todos</option>
+        </select>
+
+        <select class="filter-select" id="filterUrgencia" aria-label="Filtrar por urgência">
+          <option value="">Urgência: todas</option>
+          <option value="Critica">Crítica</option>
+          <option value="Alta">Alta</option>
+          <option value="Media">Média</option>
+          <option value="Baixa">Baixa</option>
+        </select>
+
+        <select class="filter-select" id="filterStatus" aria-label="Filtrar por status">
+          <option value="">Status: todos</option>
+          <option value="Pendente">Pendente</option>
+          <option value="Em Andamento">Em andamento</option>
+          <option value="Aguardando">Aguardando</option>
+          <option value="Concluido">Concluído</option>
+        </select>
+
+        <button type="button" class="btn btn-link" id="btnLimparFiltros" hidden>Limpar filtros</button>
+      </div>
+    </section>
+
+    <!-- Lista de processos -->
+    <section class="board">
+      <div class="board-head">
+        <span>Processo</span>
+        <span>Quem?</span>
+        <span>Urgência</span>
+        <span>Status</span>
+        <span class="result-count" id="resultCount" aria-live="polite"></span>
+      </div>
+
+      <ul class="process-list" id="processList"></ul>
+
+      <div class="empty-state" id="emptyState" hidden>
+        <h3 id="emptyTitle">Nenhum processo encontrado</h3>
+        <p id="emptyText">Nenhum processo corresponde aos filtros aplicados.</p>
+        <div class="empty-actions">
+          <button type="button" class="btn btn-secondary" id="btnLimparVazio">Limpar filtros</button>
+          <button type="button" class="btn btn-secondary" id="btnCarregarQuadro">Carregar processos do quadro</button>
+          <button type="button" class="btn btn-primary" id="btnNovoVazio">Cadastrar processo</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="app-footer">
+      <span>Regulação e Informatização SUS</span>
+      <button type="button" class="btn btn-link" id="btnConfigFirebase">Configurar Firebase</button>
+    </footer>
+  </main>
+
+  <!-- Modal: Novo / Editar processo -->
+  <div class="modal-backdrop" id="demandaModal">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h2 id="modalTitle">Novo processo</h2>
+        <button class="btn-icon" id="btnCloseModal" type="button" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <form id="demandaForm">
+        <input type="hidden" id="formDemandaId">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="inputDescricao">Descrição do processo *</label>
+            <input type="text" id="inputDescricao" required placeholder="Ex: Lei 5984 de 15/05/26" autocomplete="off">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="inputQuem">Quem?</label>
+              <input type="text" id="inputQuem" list="listaServidores" placeholder="Ex: Alzira e Cássio" autocomplete="off">
+              <datalist id="listaServidores"></datalist>
+            </div>
+
+            <div class="form-group">
+              <label for="inputUrgencia">Urgência</label>
+              <select id="inputUrgencia">
+                <option value="Baixa">Baixa</option>
+                <option value="Media" selected>Média</option>
+                <option value="Alta">Alta</option>
+                <option value="Critica">Crítica</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="inputStatus">Status</label>
+              <select id="inputStatus">
+                <option value="Pendente">Pendente</option>
+                <option value="Em Andamento" selected>Em andamento</option>
+                <option value="Aguardando">Aguardando</option>
+                <option value="Concluido">Concluído</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="inputProgresso">Situação atual / última ação</label>
+            <input type="text" id="inputProgresso" placeholder="Ex: Justificativa entregue p/ Lucas em 10/09" autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <label for="inputItens">Itens para acompanhar <span class="label-hint">(um por linha — ex: protocolos 1DOC)</span></label>
+            <textarea id="inputItens" rows="4" placeholder="AT-33826&#10;SC-34374 e 33826&#10;DG-34146"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="inputObs">Observações</label>
+            <textarea id="inputObs" rows="2" placeholder="Detalhes adicionais"></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveModal">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Configuração do Firebase -->
+  <div class="modal-backdrop" id="firebaseModal">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="firebaseModalTitle">
+      <div class="modal-header">
+        <h2 id="firebaseModalTitle">Conexão com o Firebase</h2>
+        <button class="btn-icon" id="btnCloseFirebaseModal" type="button" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-text">
+          Conecte ao <strong>Cloud Firestore</strong> da conta <code>regulacaoeinformatizacaosus@gmail.com</code> para que todo o setor veja as alterações em tempo real. Sem isso, os dados ficam salvos só neste navegador.
+        </p>
+
+        <div class="form-group">
+          <label for="inputFirebaseConfig">Objeto <code>firebaseConfig</code></label>
+          <textarea id="inputFirebaseConfig" class="code-input" rows="8" spellcheck="false" placeholder='const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "scp-comandos-pagamento.firebaseapp.com",
+  projectId: "scp-comandos-pagamento",
+  ...
+};'></textarea>
+        </div>
+
+        <p class="modal-hint">
+          Onde pegar: Firebase Console › Configurações do projeto › Seus aplicativos › Web. Pode colar o bloco inteiro.
+        </p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnRestaurarPadrao">Usar só neste navegador</button>
+        <button type="button" class="btn btn-primary" id="btnSalvarFirebase">Salvar e conectar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

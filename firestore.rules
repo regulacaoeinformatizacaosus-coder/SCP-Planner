@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permite leitura e escrita na coleção de processos do setor SCP
+    match /processos_scp/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
