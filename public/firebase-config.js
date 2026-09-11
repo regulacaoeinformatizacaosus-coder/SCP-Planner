@@ -1,18 +1,17 @@
 // ============================================================================
-// CONFIGURAÇÃO DO FIREBASE - SCP PLANNER (SETOR DE COMANDOS DE PAGAMENTO)
-// Conta: regulacaoeinformatizacaosus@gmail.com
+// CONFIGURAÇÃO DO FIREBASE - SCP PLANNER
+// Projeto: scp-planner-528ed (conta regulacaoeinformatizacaosus@gmail.com)
 // ============================================================================
-// Substitua os valores abaixo pelos dados do seu projeto criado no Firebase Console:
-// https://console.firebase.google.com/
+// Valores de: Firebase Console › Configurações do projeto › Seus aplicativos › Web
 //
-// Dica: Você também pode colar estas credenciais diretamente na interface
-// do sistema clicando no botão "Configurar Firebase".
+// A apiKey do Firebase Web não é secreta. O acesso aos dados é controlado
+// pelo login com Google e pelas regras do Firestore (firestore.rules).
 
 export const firebaseConfig = {
-  apiKey: "SUA_API_KEY_AQUI",
-  authDomain: "scp-comandos-pagamento.firebaseapp.com",
-  projectId: "scp-comandos-pagamento",
-  storageBucket: "scp-comandos-pagamento.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyBS2fWJw-Feub-DgC_JZGnLIhQczYqsFcA",
+  authDomain: "scp-planner-528ed.firebaseapp.com",
+  projectId: "scp-planner-528ed",
+  storageBucket: "scp-planner-528ed.firebasestorage.app",
+  messagingSenderId: "767473686008",
+  appId: "1:767473686008:web:7e910a10358ac52f7f720d"
 };

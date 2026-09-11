@@ -2,6 +2,7 @@ import { firebaseConfig as defaultConfigFile } from './firebase-config.js';
 
 const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.13.0';
 const COLECAO = 'processos_scp';
+const COLECAO_AUTORIZADOS = 'autorizados';
 const CHAVE_LOCAL = 'scp_local_processos_v2';
 const CHAVE_CONFIG = 'scp_firebase_config';
 
@@ -88,7 +89,11 @@ function processosDoQuadro() {
 // ============================================================================
 let db = null;
 let fs = null;
+let auth = null;
+let authApi = null;
+let usuario = null;
 let firestoreUnsubscribe = null;
+let authUnsubscribe = null;
 let processos = [];
 let modo = 'carregando'; // 'carregando' | 'firebase' | 'local'
 let filtroRapido = 'todos';
@@ -199,7 +204,70 @@ function showToast(mensagem, tipo = 'info') {
 }
 
 // ============================================================================
-// CONEXÃO: FIREBASE (TEMPO REAL) OU LOCAL (NAVEGADOR)
+// TELAS: LISTA DE PROCESSOS OU LOGIN / ACESSO NEGADO / ERRO
+// ============================================================================
+function mostrarLista() {
+  $('authGate').hidden = true;
+  $('appContent').hidden = false;
+  document.body.classList.remove('bloqueado');
+}
+
+function mostrarPortao(tela, texto = '') {
+  const email = usuario?.email || '';
+  const telas = {
+    login: {
+      titulo: 'Entrar no SCP Planner',
+      texto: 'Use a sua conta Google liberada pelo setor para ver e editar os processos.',
+      botoes: ['btnEntrarGoogle']
+    },
+    negado: {
+      titulo: 'Acesso ainda não liberado',
+      texto: `O e-mail ${email} não está na lista de acesso do SCP Planner. Peça ao responsável pelo sistema para liberar e depois clique em "Tentar novamente".`,
+      botoes: ['btnTentarNovamente', 'btnTrocarConta']
+    },
+    erro: {
+      titulo: 'Não foi possível conectar',
+      texto: texto || 'Verifique sua conexão com a internet e tente novamente.',
+      botoes: usuario ? ['btnTentarNovamente', 'btnTrocarConta'] : ['btnTentarNovamente']
+    }
+  }[tela];
+
+  $('gateTitulo').textContent = telas.titulo;
+  $('gateTexto').textContent = telas.texto;
+  ['btnEntrarGoogle', 'btnTentarNovamente', 'btnTrocarConta'].forEach(id => {
+    $(id).hidden = !telas.botoes.includes(id);
+  });
+
+  $('appContent').hidden = true;
+  $('authGate').hidden = false;
+  document.body.classList.add('bloqueado');
+}
+
+function atualizarUsuarioNoHeader() {
+  const btn = $('btnUsuario');
+  btn.hidden = !usuario;
+  if (!usuario) return;
+
+  const nome = usuario.displayName || usuario.email;
+  $('userEmail').textContent = usuario.email;
+  btn.title = `Conectado como ${usuario.email}. Clique para sair.`;
+
+  const avatar = $('userAvatar');
+  avatar.textContent = '';
+  if (usuario.photoURL) {
+    const img = document.createElement('img');
+    img.src = usuario.photoURL;
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    img.onerror = () => { avatar.textContent = iniciais(nome); };
+    avatar.appendChild(img);
+  } else {
+    avatar.textContent = iniciais(nome);
+  }
+}
+
+// ============================================================================
+// CONEXÃO: FIREBASE (LOGIN + TEMPO REAL) OU LOCAL (NAVEGADOR)
 // ============================================================================
 function definirStatusConexao(estado, texto, titulo = '') {
   connectionStatus.className = `status-pill ${estado}`;
@@ -244,6 +312,13 @@ function pararSincronizacao() {
   }
 }
 
+function pararAutenticacao() {
+  if (authUnsubscribe) {
+    authUnsubscribe();
+    authUnsubscribe = null;
+  }
+}
+
 async function initFirebase() {
   const config = obterConfigAtiva();
   if (!config) {
@@ -252,39 +327,118 @@ async function initFirebase() {
   }
 
   pararSincronizacao();
+  pararAutenticacao();
   modo = 'carregando';
   definirStatusConexao('connecting', 'Conectando...');
+  mostrarLista();
   render();
 
   try {
     const { initializeApp, getApps } = await import(`${FIREBASE_SDK}/firebase-app.js`);
-    fs = await import(`${FIREBASE_SDK}/firebase-firestore.js`);
+    [fs, authApi] = await Promise.all([
+      import(`${FIREBASE_SDK}/firebase-firestore.js`),
+      import(`${FIREBASE_SDK}/firebase-auth.js`)
+    ]);
 
     const nomeApp = `scp-${config.projectId}-${config.apiKey.slice(-6)}`;
     const app = getApps().find(a => a.name === nomeApp) || initializeApp(config, nomeApp);
     db = fs.getFirestore(app);
+    auth = authApi.getAuth(app);
+    authApi.useDeviceLanguage(auth);
 
-    firestoreUnsubscribe = fs.onSnapshot(fs.collection(db, COLECAO), (snapshot) => {
-      processos = snapshot.docs.map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
-      modo = 'firebase';
-      definirStatusConexao('online', 'Online', `Sincronizado com o Firestore (${config.projectId})`);
-      render();
-    }, (error) => {
-      console.error('Erro no Firestore:', error);
-      showToast('Não foi possível acessar o Firestore. Usando dados deste navegador.', 'error');
-      ativarModoLocal();
-    });
+    authUnsubscribe = authApi.onAuthStateChanged(auth, (user) => aoMudarUsuario(user, config));
   } catch (err) {
     console.error('Falha ao inicializar o Firebase:', err);
-    showToast('Falha ao carregar o Firebase. Usando dados deste navegador.', 'error');
-    ativarModoLocal();
+    definirStatusConexao('offline', 'Desconectado');
+    mostrarPortao('erro', 'Não foi possível carregar o Firebase. Verifique sua conexão e tente novamente.');
   }
+}
+
+async function aoMudarUsuario(user, config) {
+  pararSincronizacao();
+  usuario = user;
+  processos = [];
+  atualizarUsuarioNoHeader();
+
+  if (!user) {
+    modo = 'carregando';
+    definirStatusConexao('offline', 'Não conectado');
+    mostrarPortao('login');
+    return;
+  }
+
+  modo = 'carregando';
+  definirStatusConexao('connecting', 'Conectando...');
+  mostrarLista();
+  render();
+
+  try {
+    const liberado = await fs.getDoc(fs.doc(db, COLECAO_AUTORIZADOS, user.email.toLowerCase()));
+    if (usuario !== user) return;
+    if (!liberado.exists()) {
+      definirStatusConexao('offline', 'Sem acesso');
+      mostrarPortao('negado');
+      return;
+    }
+  } catch (err) {
+    console.error('Erro ao verificar acesso:', err);
+    if (usuario !== user) return;
+    definirStatusConexao('offline', 'Sem acesso');
+    mostrarPortao('negado');
+    return;
+  }
+
+  firestoreUnsubscribe = fs.onSnapshot(fs.collection(db, COLECAO), (snapshot) => {
+    processos = snapshot.docs.map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+    modo = 'firebase';
+    definirStatusConexao('online', 'Online', `Sincronizado com o Firestore (${config.projectId})`);
+    render();
+  }, (error) => {
+    console.error('Erro no Firestore:', error);
+    pararSincronizacao();
+    definirStatusConexao('offline', 'Desconectado');
+    mostrarPortao('erro', error.code === 'permission-denied'
+      ? 'Sua conta não tem permissão para acessar os processos.'
+      : 'A conexão com o banco de dados foi perdida.');
+  });
+}
+
+async function entrarComGoogle() {
+  const provider = new authApi.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try {
+    await authApi.signInWithPopup(auth, provider);
+  } catch (err) {
+    console.error('Erro no login:', err);
+    const mensagens = {
+      'auth/popup-closed-by-user': null,
+      'auth/cancelled-popup-request': null,
+      'auth/unauthorized-domain': 'Este endereço não está nos "Domínios autorizados" do Firebase Authentication.',
+      'auth/operation-not-allowed': 'O login com Google não está ativado no Firebase Authentication.',
+      'auth/network-request-failed': 'Sem conexão com a internet.'
+    };
+    if (err.code === 'auth/popup-blocked') {
+      await authApi.signInWithRedirect(auth, provider);
+      return;
+    }
+    const mensagem = err.code in mensagens ? mensagens[err.code] : 'Não foi possível entrar. Tente novamente.';
+    if (mensagem) showToast(mensagem, 'error');
+  }
+}
+
+async function sair() {
+  if (!auth) return;
+  await authApi.signOut(auth);
 }
 
 function ativarModoLocal() {
   pararSincronizacao();
+  pararAutenticacao();
   db = null;
+  usuario = null;
   modo = 'local';
+  atualizarUsuarioNoHeader();
+  mostrarLista();
   definirStatusConexao('offline', 'Só neste navegador', 'Os dados estão salvos apenas neste navegador. Configure o Firebase para compartilhar com o setor.');
 
   let salvos = null;
@@ -317,7 +471,11 @@ function salvarLocalmente() {
 // ============================================================================
 async function criarProcesso(dados) {
   if (modo === 'firebase') {
-    await fs.addDoc(fs.collection(db, COLECAO), { ...dados, criadoEm: fs.serverTimestamp() });
+    await fs.addDoc(fs.collection(db, COLECAO), {
+      ...dados,
+      criadoEm: fs.serverTimestamp(),
+      criadoPor: usuario.email
+    });
     return;
   }
   processos.push({ ...dados, id: `local_${Date.now()}`, criadoEm: Date.now() });
@@ -327,7 +485,11 @@ async function criarProcesso(dados) {
 
 async function atualizarProcesso(id, dados) {
   if (modo === 'firebase') {
-    await fs.updateDoc(fs.doc(db, COLECAO, id), { ...dados, atualizadoEm: fs.serverTimestamp() });
+    await fs.updateDoc(fs.doc(db, COLECAO, id), {
+      ...dados,
+      atualizadoEm: fs.serverTimestamp(),
+      atualizadoPor: usuario.email
+    });
     return;
   }
   const item = processos.find(p => p.id === id);
@@ -353,7 +515,7 @@ async function tentar(acao, mensagemErro) {
     return true;
   } catch (err) {
     console.error(err);
-    showToast(mensagemErro, 'error');
+    showToast(err.code === 'permission-denied' ? 'Sem permissão para esta alteração.' : mensagemErro, 'error');
     return false;
   }
 }
@@ -362,8 +524,9 @@ async function carregarProcessosDoQuadro() {
   const lista = processosDoQuadro();
   const ok = await tentar(async () => {
     if (modo === 'firebase') {
+      // Um por vez, para manter a ordem do quadro
       for (const { id, criadoEm, ...dados } of lista) {
-        await fs.addDoc(fs.collection(db, COLECAO), { ...dados, criadoEm });
+        await criarProcesso(dados);
       }
     } else {
       processos = lista;
@@ -468,6 +631,7 @@ function htmlProcesso(p) {
   const itens = itensDe(p);
   const feitos = itens.filter(i => i.feito).length;
   const atualizado = paraMillis(p.atualizadoEm);
+  const atualizadoPor = p.atualizadoPor ? ` por ${String(p.atualizadoPor).split('@')[0]}` : '';
 
   const htmlItens = itens.length ? `
     <div class="checklist">
@@ -494,7 +658,7 @@ function htmlProcesso(p) {
         ${p.progresso ? `<p class="process-progress">${ICONES.relogio}<span>${escapeHtml(p.progresso)}</span></p>` : ''}
         ${htmlItens}
         ${p.obs ? `<p class="process-obs">${escapeHtml(p.obs)}</p>` : ''}
-        ${atualizado ? `<p class="process-meta">Atualizado em ${formatarData(atualizado)}</p>` : ''}
+        ${atualizado ? `<p class="process-meta">Atualizado em ${formatarData(atualizado)}${escapeHtml(atualizadoPor)}</p>` : ''}
       </div>
 
       <div class="process-quem">
@@ -528,6 +692,7 @@ function htmlProcesso(p) {
 }
 
 function render() {
+  document.body.classList.toggle('carregando', modo === 'carregando');
   atualizarListasDePessoas();
   atualizarKpis();
 
@@ -669,6 +834,10 @@ $('btnSalvarFirebase').addEventListener('click', async () => {
 $('btnRestaurarPadrao').addEventListener('click', () => {
   localStorage.removeItem(CHAVE_CONFIG);
   fechar(firebaseModal);
+  if (configValida(defaultConfigFile)) {
+    initFirebase();
+    return;
+  }
   ativarModoLocal();
   showToast('Usando dados salvos neste navegador.');
 });
@@ -707,11 +876,20 @@ $('btnNovoVazio').addEventListener('click', () => abrirModal());
 $('btnCloseModal').addEventListener('click', () => fechar(demandaModal));
 $('btnCancelModal').addEventListener('click', () => fechar(demandaModal));
 $('btnConfigFirebase').addEventListener('click', abrirModalFirebase);
-connectionStatus.addEventListener('click', abrirModalFirebase);
 $('btnCloseFirebaseModal').addEventListener('click', () => fechar(firebaseModal));
 $('btnCarregarQuadro').addEventListener('click', carregarProcessosDoQuadro);
 $('btnLimparVazio').addEventListener('click', limparFiltros);
 btnLimparFiltros.addEventListener('click', limparFiltros);
+
+$('btnEntrarGoogle').addEventListener('click', entrarComGoogle);
+$('btnTentarNovamente').addEventListener('click', () => initFirebase());
+$('btnTrocarConta').addEventListener('click', async () => {
+  await sair();
+  entrarComGoogle();
+});
+$('btnUsuario').addEventListener('click', () => {
+  if (confirm(`Sair da conta ${usuario?.email}?`)) sair();
+});
 
 $('btnImprimir').addEventListener('click', () => {
   $('printData').textContent = new Date().toLocaleString('pt-BR');

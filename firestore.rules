@@ -1,9 +1,59 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permite leitura e escrita na coleção de processos do setor SCP
-    match /processos_scp/{document=**} {
-      allow read, write: if true;
+
+    // Usuário logado com e-mail Google verificado
+    function logado() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
+    }
+
+    // E-mail cadastrado na coleção "autorizados" (ID do documento = e-mail em minúsculas)
+    function autorizado() {
+      return logado()
+        && exists(/databases/$(database)/documents/autorizados/$(request.auth.token.email.lower()));
+    }
+
+    function processoValido(d) {
+      return d.descricao is string && d.descricao.size() > 0 && d.descricao.size() <= 500
+        && d.quem is string && d.quem.size() <= 200
+        && d.urgencia in ['Critica', 'Alta', 'Media', 'Baixa']
+        && d.status in ['Pendente', 'Em Andamento', 'Aguardando', 'Concluido']
+        && d.progresso is string && d.progresso.size() <= 1000
+        && d.obs is string && d.obs.size() <= 5000
+        && d.itens is list && d.itens.size() <= 200;
+    }
+
+    // Lista de acesso: cada pessoa só consegue ver se o próprio e-mail está liberado.
+    // Adicionar/remover pessoas é feito apenas pelo Firebase Console.
+    match /autorizados/{email} {
+      allow read: if logado() && request.auth.token.email.lower() == email;
+      allow write: if false;
+    }
+
+    match /processos_scp/{id} {
+      allow read: if autorizado();
+
+      allow create: if autorizado()
+        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor'])
+        && processoValido(request.resource.data)
+        && request.resource.data.criadoEm == request.time
+        && request.resource.data.criadoPor == request.auth.token.email;
+
+      allow update: if autorizado()
+        && request.resource.data.keys().hasOnly(['descricao', 'quem', 'urgencia', 'status', 'progresso', 'itens', 'obs', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['criadoEm', 'criadoPor'])
+        && processoValido(request.resource.data)
+        && request.resource.data.atualizadoEm == request.time
+        && request.resource.data.atualizadoPor == request.auth.token.email;
+
+      allow delete: if autorizado();
+    }
+
+    // Qualquer outra coleção fica bloqueada
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
