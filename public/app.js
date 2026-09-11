@@ -562,6 +562,37 @@ async function removerProcesso(id) {
   render();
 }
 
+async function transferirProcesso(id, item, destId) {
+  const dest = NUCLEOS[destId];
+  const dadosBase = {
+    descricao: item.descricao,
+    quem: item.quem,
+    urgencia: item.urgencia,
+    status: item.status,
+    progresso: item.progresso,
+    itens: item.itens || [],
+    obs: item.obs || ''
+  };
+
+  if (modo === 'firebase') {
+    await fs.addDoc(fs.collection(db, dest.colecao), {
+      ...dadosBase,
+      criadoEm: fs.serverTimestamp(),
+      criadoPor: usuario.email
+    });
+    await fs.deleteDoc(fs.doc(db, nucleoAtual().colecao, id));
+    return;
+  }
+  
+  const localDest = JSON.parse(localStorage.getItem(dest.chaveLocal) || '[]');
+  localDest.push({ ...dadosBase, id: `local_${Date.now()}`, criadoEm: Date.now() });
+  localStorage.setItem(dest.chaveLocal, JSON.stringify(localDest));
+  
+  processos = processos.filter(p => p.id !== id);
+  salvarLocalmente();
+  render();
+}
+
 async function tentar(acao, mensagemErro) {
   try {
     await acao();
@@ -741,7 +772,8 @@ const ICONES = {
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   reabrir: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>',
   editar: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>',
-  excluir: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>'
+  excluir: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>',
+  transferir: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>'
 };
 
 function htmlProcesso(p) {
@@ -807,6 +839,9 @@ function htmlProcesso(p) {
         <button type="button" class="btn-icon action-check" data-acao="concluir" title="${concluido ? 'Reabrir' : 'Concluir'}">
           ${concluido ? ICONES.reabrir : ICONES.check}<span class="action-label">${concluido ? 'Reabrir' : 'Concluir'}</span>
         </button>
+        <button type="button" class="btn-icon action-transfer" data-acao="transferir" title="Transferir para outro núcleo">
+          ${ICONES.transferir}<span class="action-label">Transferir</span>
+        </button>
         <button type="button" class="btn-icon" data-acao="editar" title="Editar">
           ${ICONES.editar}<span class="action-label">Editar</span>
         </button>
@@ -870,6 +905,14 @@ processList.addEventListener('click', async (e) => {
     const novoStatus = estaConcluido(item) ? 'Em Andamento' : 'Concluido';
     const ok = await tentar(() => atualizarProcesso(id, { status: novoStatus }), 'Erro ao alterar o status.');
     if (ok) showToast(novoStatus === 'Concluido' ? 'Processo concluído.' : 'Processo reaberto.', 'success');
+  } else if (botao.dataset.acao === 'transferir') {
+    const outrosIds = Object.keys(NUCLEOS).filter(k => k !== nucleoAtivo);
+    if (outrosIds.length === 0) return;
+    const destId = outrosIds[0];
+    const dest = NUCLEOS[destId];
+    if (!confirm(`Deseja transferir o processo "${item.descricao}" para o núcleo: ${dest.rotulo}?`)) return;
+    const ok = await tentar(() => transferirProcesso(id, item, destId), 'Erro ao transferir o processo.');
+    if (ok) showToast(`Processo transferido para ${dest.rotulo}.`, 'success');
   } else if (botao.dataset.acao === 'excluir') {
     if (!confirm(`Excluir o processo "${item.descricao}"?`)) return;
     const ok = await tentar(() => removerProcesso(id), 'Erro ao excluir o processo.');
