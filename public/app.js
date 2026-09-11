@@ -567,22 +567,24 @@ async function transferirProcesso(id, item, destId) {
   const dest = NUCLEOS[destId];
   const dadosBase = {
     descricao: item.descricao,
-    quem: item.quem,
-    urgencia: item.urgencia,
-    status: item.status,
-    progresso: item.progresso,
+    quem: item.quem || '',
+    urgencia: normalizarUrgencia(item.urgencia),
+    status: normalizarStatus(item.status),
+    progresso: item.progresso || '',
     itens: item.itens || [],
     obs: item.obs || '',
     notificacao: true
   };
 
   if (modo === 'firebase') {
-    await fs.addDoc(fs.collection(db, dest.colecao), {
+    const batch = fs.writeBatch(db);
+    batch.set(fs.doc(fs.collection(db, dest.colecao)), {
       ...dadosBase,
       criadoEm: fs.serverTimestamp(),
       criadoPor: usuario.email
     });
-    await fs.deleteDoc(fs.doc(db, nucleoAtual().colecao, id));
+    batch.delete(fs.doc(db, nucleoAtual().colecao, id));
+    await batch.commit();
     return;
   }
   
@@ -910,7 +912,7 @@ processList.addEventListener('click', async (e) => {
     const ok = await tentar(() => atualizarProcesso(id, { status: novoStatus }), 'Erro ao alterar o status.');
     if (ok) showToast(novoStatus === 'Concluido' ? 'Processo concluído.' : 'Processo reaberto.', 'success');
   } else if (botao.dataset.acao === 'transferir') {
-    const outrosIds = Object.keys(NUCLEOS).filter(k => k !== nucleoAtivo);
+    const outrosIds = Object.keys(NUCLEOS).filter(k => k !== nucleo);
     if (outrosIds.length === 0) return;
     const destId = outrosIds[0];
     const dest = NUCLEOS[destId];
