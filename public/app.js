@@ -222,7 +222,7 @@ function mostrarPortao(tela, texto = '') {
     },
     negado: {
       titulo: 'Acesso ainda não liberado',
-      texto: `Você entrou como ${email}, mas essa conta não está liberada. No Firebase, a coleção "autorizados" precisa ter um documento com o ID exatamente igual a: ${email.toLowerCase()}`,
+      texto: `Você entrou como ${email}, mas essa conta não está liberada. No Firebase (projeto ${db?.app?.options?.projectId || '?'}), a coleção "autorizados" precisa ter um documento com o ID exatamente igual a: ${email.toLowerCase()}`,
       botoes: ['btnTentarNovamente', 'btnTrocarConta']
     },
     erro: {
@@ -295,14 +295,17 @@ function configValida(config) {
   return Boolean(config && config.apiKey && config.projectId && config.apiKey !== 'SUA_API_KEY_AQUI');
 }
 
+// A configuração do arquivo (compartilhada por todos) sempre tem prioridade;
+// a salva no navegador só vale quando o arquivo não está configurado.
 function obterConfigAtiva() {
+  if (configValida(defaultConfigFile)) return defaultConfigFile;
   try {
     const salva = JSON.parse(localStorage.getItem(CHAVE_CONFIG) || 'null');
     if (configValida(salva)) return salva;
   } catch (e) {
     console.warn('Configuração do Firebase salva é inválida:', e);
   }
-  return configValida(defaultConfigFile) ? defaultConfigFile : null;
+  return null;
 }
 
 function pararSincronizacao() {
@@ -905,5 +908,8 @@ document.querySelectorAll('.kpi-card').forEach(card => {
 
 searchInput.addEventListener('input', render);
 [filterQuem, filterUrgencia, filterStatus].forEach(sel => sel.addEventListener('change', render));
+
+// Com o Firebase definido no arquivo, não há o que configurar pela tela
+$('btnConfigFirebase').hidden = configValida(defaultConfigFile);
 
 initFirebase();
